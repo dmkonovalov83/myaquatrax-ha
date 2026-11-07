@@ -2,6 +2,67 @@
 
 Pull water usage, cost, and comparison data from [myaquatrax.com](https://myaquatrax.com) into Home Assistant.
 
+## About this fork
+
+This is a fork of [HenrikJohnson/myaquatrax-ha](https://github.com/HenrikJohnson/myaquatrax-ha) with one fix: accounts whose meter isn't a smart (AMI) meter could not be set up. The rest of this README is unchanged from the original and describes its behavior, apart from the bi-monthly sensors below.
+
+To install this fork through HACS or the Marketplace, add `dmkonovalov83/myaquatrax-ha` as a custom repository instead of the URL in [Installation](#installation).
+
+**Full diff against the original:** [compare view](https://github.com/HenrikJohnson/myaquatrax-ha/compare/main...dmkonovalov83:myaquatrax-ha:main)
+
+### The problem
+
+A City of San Jose account with a non-AMI meter failed setup with "Invalid authentication", even though its email and password were correct. There were two separate causes:
+
+1. **Wrong login form.** The integration showed the SSO form (Account + Email + Street) whenever a utility had `ssoenable = 1`. The portal's own login page only uses SSO when `ssoenable = 1` **and** `IsRegistration = false`. San Jose has `IsRegistration = true`, so the portal uses email + password, which the integration offered no way to enter.
+2. **Empty meter list reported as an auth failure.** After login, the integration only looked up meters with `mode=H`. For a non-AMI meter that returns no rows, and `config_flow.py` treats "no meters" as `InvalidAuth`. The portal's usage page opens in bi-monthly view and requests meters with an empty `mode`, which does list the meter. For this account, only bi-monthly (`mode=B`) usage returned any data.
+
+### What changed
+
+| File | Change |
+|------|--------|
+| `config_flow.py` | Shows the SSO form only when `sso_enabled and not is_registration`, the same rule as the portal's login page |
+| `myaquatrax_client.py` | `login()` looks up the utility and sends the hidden field values the portal's page sets for it (`Mfe`, `InvoiceCoudstatus`, `IsRegistration`, `IsSSOEnabled`) instead of fixed values. Raises `AquaTraxError` for an unknown utility |
+| `myaquatrax_client.py` | `get_usage_meters()` falls back to the empty-`mode` lookup when `mode=H` returns nothing |
+| `myaquatrax_client.py` | Adds `Utility.mfa_enabled` and `UsageReading.month` (from `MonthUsageDate`) |
+| `coordinator.py` | On the first update, treats the meter as bi-monthly if `mode=H` lists no meters, and then fetches only `mode=B` usage in gallons and CCF |
+| `sensor.py` | Adds a bi-monthly sensor set, used instead of the standard sensors for those meters, plus a `usage_month` attribute when a reading has a month |
+
+### Bi-monthly sensors
+
+These are created for meters with no hourly data, in both gallons and CCF:
+
+| Sensor | Description |
+|--------|-------------|
+| Latest Bi-monthly Usage | Usage in the most recent bi-monthly reading |
+| Bi-monthly Average | `AVERAGE` from the portal |
+| Bi-monthly Highest | `HIGHEST` from the portal |
+| Bi-monthly Lowest | `LOWEST` from the portal |
+
+They have no `state_class`, so they don't record long-term statistics or feed the Energy Dashboard. New readings only appear about every two months. Cost, comparison and flow sensors aren't created for these meters. Dollar amounts were hidden for the tested account (`IsShow = 0`), and comparison data wasn't tested for non-AMI meters.
+
+Meters that do list under `mode=H` take the same code path and keep the same sensors as before.
+
+### Effects on other accounts
+
+- Every email + password login now makes one extra `GetMasterUtilityList` request and sends that utility's field values.
+- Any utility with `ssoenable = 1` and `IsRegistration = true` now gets the email + password form during setup. Existing SSO config entries keep logging in with SSO.
+- An AMI account makes one extra `mode=H` lookup on its first update. If that lookup ever returned no rows, the account would be treated as bi-monthly until Home Assistant restarts.
+
+### Testing
+
+- **Live portal:** the patched client was run against myaquatrax.com with one City of San Jose non-AMI account. Login, account and meter discovery, and bi-monthly usage in gallons and CCF all worked.
+- **Offline:** the config flow's form choice, the coordinator and the sensors were tested with Home Assistant stubbed out, using responses captured from the portal.
+- **Not tested yet:** a real Home Assistant install, SSO logins, AMI accounts, and other utilities.
+
+### Left as is
+
+These looked worth a follow-up but weren't needed for the fix:
+
+- `_do_login_post()` treats the word `Invalid` anywhere in the returned page as a failed login, which could misreport a successful login.
+- CCF sensors use the unit `hcf`, which may not be a unit Home Assistant accepts for water sensors.
+- There's no `translations/` folder, so setup form labels may show as raw field names in custom installs.
+
 ## Features
 
 - **Gallons** and **CCF/HCF** usage sensors (billing period total, daily, average, highest, lowest)
