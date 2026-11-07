@@ -27,6 +27,7 @@ A City of San Jose account with a non-AMI meter failed setup with "Invalid authe
 | `myaquatrax_client.py` | Adds `Utility.mfa_enabled` and `UsageReading.month` (from `MonthUsageDate`) |
 | `coordinator.py` | On the first update, treats the meter as bi-monthly if `mode=H` lists no meters, and then fetches only `mode=B` usage in gallons and CCF |
 | `sensor.py` | Adds a bi-monthly sensor set, used instead of the standard sensors for those meters, plus a `usage_month` attribute when a reading has a month |
+| `sensor.py` | Changes the CCF sensors' unit from `hcf` to `CCF`. Home Assistant logged `hcf` as invalid for water sensors, and listed `CCF` as valid |
 
 ### Bi-monthly sensors
 
@@ -48,19 +49,20 @@ Meters that do list under `mode=H` take the same code path and keep the same sen
 - Every email + password login now makes one extra `GetMasterUtilityList` request and sends that utility's field values.
 - Any utility with `ssoenable = 1` and `IsRegistration = true` now gets the email + password form during setup. Existing SSO config entries keep logging in with SSO.
 - An AMI account makes one extra `mode=H` lookup on its first update. If that lookup ever returned no rows, the account would be treated as bi-monthly until Home Assistant restarts.
+- The unit change applies to every CCF sensor, so an account with long-term statistics recorded under `hcf` may see a unit-change prompt in Home Assistant.
 
 ### Testing
 
 - **Live portal:** the patched client was run against myaquatrax.com with one City of San Jose non-AMI account. Login, account and meter discovery, and bi-monthly usage in gallons and CCF all worked.
 - **Offline:** the config flow's form choice, the coordinator and the sensors were tested with Home Assistant stubbed out, using responses captured from the portal.
-- **Not tested yet:** a real Home Assistant install, SSO logins, AMI accounts, and other utilities.
+- **Real Home Assistant:** on Home Assistant OS with Core 2026.11.0, installed from this fork through the Marketplace, the same account completed setup with email + password. The integration loaded and all eight bi-monthly sensors showed the portal's values. That run used the `hcf` unit, before the CCF unit change above.
+- **Not tested yet:** the CCF unit change in real Home Assistant, SSO logins, AMI accounts, and other utilities.
 
 ### Left as is
 
 These looked worth a follow-up but weren't needed for the fix:
 
 - `_do_login_post()` treats the word `Invalid` anywhere in the returned page as a failed login, which could misreport a successful login.
-- CCF sensors use the unit `hcf`, which may not be a unit Home Assistant accepts for water sensors.
 - There's no `translations/` folder, so setup form labels may show as raw field names in custom installs.
 
 ## Features
