@@ -55,8 +55,8 @@ Meters that do list under `mode=H` take the same code path and keep the same sen
 
 - **Live portal:** the patched client was run against myaquatrax.com with one City of San Jose non-AMI account. Login, account and meter discovery, and bi-monthly usage in gallons and CCF all worked.
 - **Offline:** the config flow's form choice, the coordinator and the sensors were tested with Home Assistant stubbed out, using responses captured from the portal.
-- **Real Home Assistant:** on Home Assistant OS with Core 2026.11.0, installed from this fork through the Marketplace, the same account completed setup with email + password. The integration loaded and all eight bi-monthly sensors showed the portal's values. That run used the `hcf` unit, before the CCF unit change above.
-- **Not tested yet:** the CCF unit change in real Home Assistant, SSO logins, AMI accounts, and other utilities.
+- **Real Home Assistant:** on Home Assistant OS with Core 2026.11.0, installed from this fork through the Marketplace, the same account completed setup with email + password. The integration loaded and all eight bi-monthly sensors showed the portal's values. After updating to the CCF unit change and restarting, the CCF sensors reported `CCF` with the same values, and the unit warnings were gone.
+- **Not tested yet:** SSO logins, AMI accounts, and other utilities.
 
 ### Left as is
 
